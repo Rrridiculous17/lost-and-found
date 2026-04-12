@@ -4,112 +4,120 @@ import os
 import pandas as pd
 from datetime import datetime, date
 
-# 🔴 核心修复：Streamlit 云端可写目录是 /tmp，本地用当前目录
-# 这样不管本地还是云端，数据都永久保存在文件里，不会丢！
-if os.name == 'nt':  # Windows 本地
+# 本地/云端自动适配数据库路径（重启不丢数据）
+if os.name == 'nt':
     DB_PATH = "lost_found_final.db"
-else:  # Linux / Streamlit 云端
-    DB_PATH = "/tmp/lost_found_final.db"  # 云端唯一可写目录
+else:
+    DB_PATH = "/tmp/lost_found_final.db"
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# 密码哈希
 def hash_pw(p):
     return hashlib.sha256(p.encode()).hexdigest()
 
-# 初始化数据库（100% 永久保存，重启不丢）
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
     # 用户表
     c.execute('''CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, student_id TEXT UNIQUE, password TEXT,
-        name TEXT, phone TEXT, email TEXT, role TEXT DEFAULT 'user', created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id TEXT UNIQUE,
+        password TEXT,
+        name TEXT,
+        phone TEXT,
+        email TEXT,
+        role TEXT DEFAULT 'user',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
     # 物品表
     c.execute('''CREATE TABLE IF NOT EXISTS items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, title TEXT,
-        description TEXT, location TEXT, image_path TEXT,
-        post_type TEXT, audit_status TEXT DEFAULT 'pending', status TEXT DEFAULT 'active',
-        contact_phone TEXT, contact_wechat TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        type TEXT,
+        title TEXT,
+        description TEXT,
+        location TEXT,
+        image_path TEXT,
+        post_type TEXT,
+        audit_status TEXT DEFAULT 'pending',
+        status TEXT DEFAULT 'active',
+        contact_phone TEXT,
+        contact_wechat TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
     # 认领申请表
     c.execute('''CREATE TABLE IF NOT EXISTS apply_records (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, item_id INTEGER, student_id TEXT,
-        name TEXT, phone TEXT, note TEXT, status TEXT DEFAULT '待审核', created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id INTEGER,
+        student_id TEXT,
+        name TEXT,
+        phone TEXT,
+        note TEXT,
+        status TEXT DEFAULT '待审核',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # 系统设置表
-    c.execute('''CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)''')
+    # 设置表
+    c.execute('''CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )''')
+
+    # 公告
     c.execute("SELECT * FROM settings WHERE key='announcement'")
     if not c.fetchone():
-        c.execute("INSERT INTO settings (key,value) VALUES (?,?)", ("announcement", """📢 系统公告：
-1. 失物招领审核时间为1-3个工作日，请耐心等待
-2. 发布信息务必真实，上传清晰物品图片
-3. 冒用信息将被拉黑处理
-4. 物品找回后请及时标记"""))
+        c.execute("INSERT INTO settings (key,value) VALUES (?,?)",
+            ("announcement", "欢迎使用校园失物招领平台！请文明发布、诚信认领，谢谢配合～"))
 
-    # 管理员账号
+    # 管理员
     c.execute("SELECT * FROM users WHERE student_id='admin'")
     if not c.fetchone():
         c.execute("INSERT INTO users (student_id,password,name,role) VALUES (?,?,?,?)",
-                  ("admin", hash_pw("123456"), "管理员", "admin"))
+            ("admin", hash_pw("123456"), "管理员", "admin"))
 
-    # 测试学生账号
+    # 测试学生
     c.execute("SELECT * FROM users WHERE student_id='2026001'")
     if not c.fetchone():
         c.execute("INSERT INTO users (student_id,password,name,role) VALUES (?,?,?,?)",
-                  ("2026001", hash_pw("123456"), "测试学生", "user"))
+            ("2026001", hash_pw("123456"), "小明", "user"))
 
-    # 测试物品数据（100% 对齐字段，不会报错）
+    # ========================= 大量失物招领数据（默认已通过） =========================
     c.execute("SELECT COUNT(*) FROM items")
     if c.fetchone()[0] == 0:
         sample_items = [
-            (1, "校园卡", "丢失校园卡一张", "图书馆二楼捡到", "图书馆二楼", "", "lost", "pending", "13800138000", "wx_admin", datetime.now()),
-            (1, "钥匙", "一串钥匙，有蓝色挂件", "教学楼A座门口", "教学楼A座", "", "lost", "pending", "13800138000", "wx_admin", datetime.now()),
-            (1, "水杯", "不锈钢保温杯", "食堂一层靠窗位置", "食堂一层", "", "found", "pending", "13800138000", "wx_admin", datetime.now())
+            # 失物 lost
+            (1, "校园卡", "校园卡丢失", "卡面有蓝色贴纸，学号2026001", "图书馆二楼", "", "lost", "passed", "13800000001", "wx_abc", datetime.now()),
+            (1, "身份证", "身份证遗失", "姓名小明，地址XX小区", "校门口", "", "lost", "passed", "13800000002", "wx_def", datetime.now()),
+            (1, "耳机", "白色蓝牙耳机", "牌子是小米，充电仓有划痕", "操场跑道", "", "lost", "passed", "13800000003", "wx_ghi", datetime.now()),
+            (1, "钥匙", "钥匙一串", "有蓝色小熊挂件", "教学楼A座门口", "", "lost", "passed", "13800000004", "wx_jkl", datetime.now()),
+            (1, "钱包", "黑色钱包", "里面有校园卡和现金", "食堂一楼", "", "lost", "passed", "13800000005", "wx_mno", datetime.now()),
+            (1, "手表", "黑色电子表", "表盘有轻微划痕", "篮球场", "", "lost", "passed", "13800000006", "wx_pqr", datetime.now()),
+            (1, "U盘", "黑色U盘", "上面有白色条纹", "自习室", "", "lost", "passed", "13800000007", "wx_stu", datetime.now()),
+            (1, "眼镜", "黑框眼镜", "镜片无明显划痕", "图书馆三楼", "", "lost", "passed", "13800000008", "wx_vwx", datetime.now()),
+
+            # 招领 found
+            (1, "校园卡", "捡到校园卡", "蓝色卡面，学号2025123", "图书馆一楼", "", "found", "passed", "13811110001", "wx_123", datetime.now()),
+            (1, "耳机", "捡到耳机", "白色AirPods，左耳有小印记", "教学楼B座", "", "found", "passed", "13811110002", "wx_456", datetime.now()),
+            (1, "水杯", "捡到水杯", "粉色保温杯，有卡通图案", "食堂二楼", "", "found", "passed", "13811110003", "wx_789", datetime.now()),
+            (1, "雨伞", "捡到雨伞", "黑色全自动雨伞", "校门口", "", "found", "passed", "13811110004", "wx_000", datetime.now()),
+            (1, "充电宝", "捡到充电宝", "白色20000毫安", "操场看台", "", "found", "passed", "13811110005", "wx_999", datetime.now()),
+            (1, "公交卡", "捡到公交卡", "羊城通，表面有贴纸", "超市门口", "", "found", "passed", "13811110006", "wx_888", datetime.now()),
+            (1, "笔记本", "捡到笔记本", "黑色封面，写满笔记", "自习室", "", "found", "passed", "13811110007", "wx_777", datetime.now()),
+            (1, "书包", "捡到书包", "蓝色双肩包，有挂件", "体育馆", "", "found", "passed", "13811110008", "wx_666", datetime.now()),
         ]
-        c.executemany('''
-            INSERT INTO items (user_id, type, title, description, location, image_path, post_type, audit_status, contact_phone, contact_wechat, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)
-        ''', sample_items)
 
-    # 视图
-    c.execute('''
-    CREATE VIEW IF NOT EXISTS view_published_found_items AS
-    SELECT items.*, users.name AS publisher_name
-    FROM items
-    JOIN users ON items.user_id = users.id
-    WHERE items.post_type = 'found' AND items.audit_status = 'passed'
-    ''')
-
-    # 触发器
-    c.execute('''
-    CREATE TRIGGER IF NOT EXISTS trigger_apply_update_item_status
-    AFTER INSERT ON apply_records
-    FOR EACH ROW
-    BEGIN
-        UPDATE items SET status = 'processing' WHERE id = NEW.item_id;
-    END;
-    ''')
-
-    c.execute('''
-    CREATE TRIGGER IF NOT EXISTS trigger_delete_item_cascade_apply
-    BEFORE DELETE ON items
-    FOR EACH ROW
-    BEGIN
-        DELETE FROM apply_records WHERE item_id = OLD.id;
-    END;
-    ''')
+        c.executemany('''INSERT INTO items
+            (user_id,type,title,description,location,image_path,post_type,audit_status,contact_phone,contact_wechat,created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)''', sample_items)
 
     conn.commit()
     conn.close()
 
-# 获取公告
+# ===================== 功能函数 =====================
 def get_announcement():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -118,7 +126,6 @@ def get_announcement():
     conn.close()
     return res[0] if res else ""
 
-# 保存公告
 def save_announcement(content):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -126,7 +133,6 @@ def save_announcement(content):
     conn.commit()
     conn.close()
 
-# 修改密码
 def update_password(user_id, new_pwd):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -134,7 +140,6 @@ def update_password(user_id, new_pwd):
     conn.commit()
     conn.close()
 
-# 统计数据
 def get_stats():
     today = date.today().strftime("%Y-%m-%d")
     conn = sqlite3.connect(DB_PATH)
