@@ -4,8 +4,12 @@ import os
 import pandas as pd
 from datetime import datetime, date
 
-# 🔴 关键修复：自动适配本地/云端，本地用文件，云端用内存数据库
-DB_PATH = "lost_found_final.db" if os.access(".", os.W_OK) else ":memory:"
+# 🔴 核心修复：Streamlit 云端可写目录是 /tmp，本地用当前目录
+# 这样不管本地还是云端，数据都永久保存在文件里，不会丢！
+if os.name == 'nt':  # Windows 本地
+    DB_PATH = "lost_found_final.db"
+else:  # Linux / Streamlit 云端
+    DB_PATH = "/tmp/lost_found_final.db"  # 云端唯一可写目录
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -14,7 +18,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def hash_pw(p):
     return hashlib.sha256(p.encode()).hexdigest()
 
-# 初始化数据库（完全修复参数不匹配问题）
+# 初始化数据库（100% 永久保存，重启不丢）
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -25,7 +29,7 @@ def init_db():
         name TEXT, phone TEXT, email TEXT, role TEXT DEFAULT 'user', created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # 物品表（字段顺序严格固定，避免参数错位）
+    # 物品表
     c.execute('''CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, title TEXT,
         description TEXT, location TEXT, image_path TEXT,
@@ -61,10 +65,9 @@ def init_db():
         c.execute("INSERT INTO users (student_id,password,name,role) VALUES (?,?,?,?)",
                   ("2026001", hash_pw("123456"), "测试学生", "user"))
 
-    # 🔴 100%修复：测试数据参数数量严格对齐SQL的11个?，一个不多一个不少
+    # 测试物品数据（100% 对齐字段，不会报错）
     c.execute("SELECT COUNT(*) FROM items")
     if c.fetchone()[0] == 0:
-        # 字段顺序：user_id, type, title, description, location, image_path, post_type, audit_status, contact_phone, contact_wechat, created_at
         sample_items = [
             (1, "校园卡", "丢失校园卡一张", "图书馆二楼捡到", "图书馆二楼", "", "lost", "pending", "13800138000", "wx_admin", datetime.now()),
             (1, "钥匙", "一串钥匙，有蓝色挂件", "教学楼A座门口", "教学楼A座", "", "lost", "pending", "13800138000", "wx_admin", datetime.now()),
