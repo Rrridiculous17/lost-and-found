@@ -1,19 +1,26 @@
 import sqlite3
 import hashlib
+import os
 import pandas as pd
-from datetime import date
+from datetime import datetime, date
 
-DB_PATH = "lostfound.db"
+# 本地/云端自动适配数据库路径（重启不丢数据）
+if os.name == 'nt':
+    DB_PATH = "lost_found_final.db"
+else:
+    DB_PATH = "/tmp/lost_found_final.db"
 
-# 密码加密
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 def hash_pw(p):
     return hashlib.sha256(p.encode()).hexdigest()
 
-# 初始化建表 + 自动插入数据
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
+    # 用户表
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id TEXT UNIQUE,
@@ -22,9 +29,10 @@ def init_db():
         phone TEXT,
         email TEXT,
         role TEXT DEFAULT 'user',
-        created_at DATE DEFAULT (date('now'))
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
+    # 物品表
     c.execute('''CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
@@ -32,116 +40,113 @@ def init_db():
         title TEXT,
         description TEXT,
         location TEXT,
+        image_path TEXT,
         post_type TEXT,
         audit_status TEXT DEFAULT 'pending',
+        status TEXT DEFAULT 'active',
         contact_phone TEXT,
-        contact_wechat TEXT
+        contact_wechat TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
+    # 认领申请表
+    c.execute('''CREATE TABLE IF NOT EXISTS apply_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id INTEGER,
+        student_id TEXT,
+        name TEXT,
+        phone TEXT,
+        note TEXT,
+        status TEXT DEFAULT '待审核',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )''')
+
+    # 设置表
     c.execute('''CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT
     )''')
 
-    # 默认管理员
-    try:
-        c.execute("INSERT INTO users (student_id,password,name,role) VALUES (?,?,?,?)",
-                  ("admin", hash_pw("123456"), "管理员", "admin"))
-    except:
-        pass
-
-    # 默认公告
-    try:
+    # 公告
+    c.execute("SELECT * FROM settings WHERE key='announcement'")
+    if not c.fetchone():
         c.execute("INSERT INTO settings (key,value) VALUES (?,?)",
-                  ("announcement", "欢迎使用校园失物招领平台！\n请诚信发布、文明认领。"))
-    except:
-        pass
+            ("announcement", "欢迎使用校园失物招领平台！请文明发布、诚信认领，谢谢配合～"))
 
-    # 插入演示数据
-    try:
-        items = [
-            (1, "校园卡", "丢失校园卡", "蓝色卡贴", "图书馆二楼", "lost", "passed", "13800000001", "wx1"),
-            (1, "身份证", "丢失身份证", "姓名小明", "校门口", "lost", "passed", "13800000002", "wx2"),
-            (1, "耳机", "丢失蓝牙耳机", "白色小米", "操场", "lost", "passed", "13800000003", "wx3"),
-            (1, "钥匙", "丢失钥匙串", "蓝色挂件", "教学楼", "lost", "passed", "13800000004", "wx4"),
+    # 管理员
+    c.execute("SELECT * FROM users WHERE student_id='admin'")
+    if not c.fetchone():
+        c.execute("INSERT INTO users (student_id,password,name,role) VALUES (?,?,?,?)",
+            ("admin", hash_pw("123456"), "管理员", "admin"))
 
-            (1, "校园卡", "捡到校园卡", "蓝色卡面", "图书馆一楼", "found", "passed", "13811110001", "wx11"),
-            (1, "耳机", "捡到耳机", "白色AirPods", "教学楼B", "found", "passed", "13811110002", "wx12"),
-            (1, "水杯", "捡到水杯", "粉色", "食堂", "found", "passed", "13811110003", "wx13"),
+    # 测试学生
+    c.execute("SELECT * FROM users WHERE student_id='2026001'")
+    if not c.fetchone():
+        c.execute("INSERT INTO users (student_id,password,name,role) VALUES (?,?,?,?)",
+            ("2026001", hash_pw("123456"), "小明", "user"))
 
-            (1, "iPad", "丢失iPad", "银色平板", "图书馆", "lost", "pending", "13800000101", "wx_p1"),
-            (1, "相机", "丢失相机", "黑色单反", "校园景点", "lost", "pending", "13800000102", "wx_p2"),
+    # ========================= 大量失物招领数据（默认已通过） =========================
+    c.execute("SELECT COUNT(*) FROM items")
+    if c.fetchone()[0] == 0:
+        sample_items = [
+            # 失物 lost
+            (1, "校园卡", "校园卡丢失", "卡面有蓝色贴纸，学号2026001", "图书馆二楼", "", "lost", "passed", "13800000001", "wx_abc", datetime.now()),
+            (1, "身份证", "身份证遗失", "姓名小明，地址XX小区", "校门口", "", "lost", "passed", "13800000002", "wx_def", datetime.now()),
+            (1, "耳机", "白色蓝牙耳机", "牌子是小米，充电仓有划痕", "操场跑道", "", "lost", "passed", "13800000003", "wx_ghi", datetime.now()),
+            (1, "钥匙", "钥匙一串", "有蓝色小熊挂件", "教学楼A座门口", "", "lost", "passed", "13800000004", "wx_jkl", datetime.now()),
+            (1, "钱包", "黑色钱包", "里面有校园卡和现金", "食堂一楼", "", "lost", "passed", "13800000005", "wx_mno", datetime.now()),
+            (1, "手表", "黑色电子表", "表盘有轻微划痕", "篮球场", "", "lost", "passed", "13800000006", "wx_pqr", datetime.now()),
+            (1, "U盘", "黑色U盘", "上面有白色条纹", "自习室", "", "lost", "passed", "13800000007", "wx_stu", datetime.now()),
+            (1, "眼镜", "黑框眼镜", "镜片无明显划痕", "图书馆三楼", "", "lost", "passed", "13800000008", "wx_vwx", datetime.now()),
+
+            # 招领 found
+            (1, "校园卡", "捡到校园卡", "蓝色卡面，学号2025123", "图书馆一楼", "", "found", "passed", "13811110001", "wx_123", datetime.now()),
+            (1, "耳机", "捡到耳机", "白色AirPods，左耳有小印记", "教学楼B座", "", "found", "passed", "13811110002", "wx_456", datetime.now()),
+            (1, "水杯", "捡到水杯", "粉色保温杯，有卡通图案", "食堂二楼", "", "found", "passed", "13811110003", "wx_789", datetime.now()),
+            (1, "雨伞", "捡到雨伞", "黑色全自动雨伞", "校门口", "", "found", "passed", "13811110004", "wx_000", datetime.now()),
+            (1, "充电宝", "捡到充电宝", "白色20000毫安", "操场看台", "", "found", "passed", "13811110005", "wx_999", datetime.now()),
+            (1, "公交卡", "捡到公交卡", "羊城通，表面有贴纸", "超市门口", "", "found", "passed", "13811110006", "wx_888", datetime.now()),
+            (1, "笔记本", "捡到笔记本", "黑色封面，写满笔记", "自习室", "", "found", "passed", "13811110007", "wx_777", datetime.now()),
+            (1, "书包", "捡到书包", "蓝色双肩包，有挂件", "体育馆", "", "found", "passed", "13811110008", "wx_666", datetime.now()),
         ]
+
         c.executemany('''INSERT INTO items
-            (user_id,type,title,description,location,post_type,audit_status,contact_phone,contact_wechat)
-            VALUES (?,?,?,?,?,?,?,?,?)''', items)
-    except:
-        pass
+            (user_id,type,title,description,location,image_path,post_type,audit_status,contact_phone,contact_wechat,created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)''', sample_items)
 
     conn.commit()
     conn.close()
 
-# 初始化数据库
-init_db()
-
-# ===================== 原有函数完全不变 =====================
+# ===================== 功能函数 =====================
 def get_announcement():
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("SELECT value FROM settings WHERE key='announcement'")
-        res = c.fetchone()
-        conn.close()
-        return res[0] if res else "欢迎使用"
-    except:
-        return "欢迎使用校园失物招领平台"
-
-def get_stats():
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        lost = pd.read_sql("SELECT COUNT(*) FROM items WHERE post_type='lost' AND audit_status='passed'", conn).iloc[0,0]
-        found = pd.read_sql("SELECT COUNT(*) FROM items WHERE post_type='found' AND audit_status='passed'", conn).iloc[0,0]
-        waiting = pd.read_sql("SELECT COUNT(*) FROM items WHERE audit_status='pending'", conn).iloc[0,0]
-        today_pub = pd.read_sql("SELECT COUNT(*) FROM items WHERE created_at=date('now')", conn).iloc[0,0]
-        conn.close()
-        return {
-            "lost": lost,
-            "found": found,
-            "waiting": waiting,
-            "today_publish": today_pub,
-            "today_done": 3
-        }
-    except:
-        return {"lost":0,"found":0,"waiting":0,"today_publish":0,"today_done":0}
-
-def login(student_id, password):
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("SELECT * FROM users WHERE student_id=? AND password=?",
-                  (student_id, hash_pw(password)))
-        res = c.fetchone()
-        conn.close()
-        return res
-    except:
-        return None
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT value FROM settings WHERE key='announcement'")
+    res = c.fetchone()
+    conn.close()
+    return res[0] if res else ""
 
 def save_announcement(content):
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("REPLACE INTO settings (key,value) VALUES (?,?)", ("announcement", content))
-        conn.commit()
-        conn.close()
-    except:
-        pass
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE settings SET value=? WHERE key='announcement'", (content,))
+    conn.commit()
+    conn.close()
 
 def update_password(user_id, new_pwd):
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("UPDATE users SET password=? WHERE id=?", (hash_pw(new_pwd), user_id))
-        conn.commit()
-        conn.close()
-    except:
-        pass
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE users SET password=? WHERE id=?", (hash_pw(new_pwd), user_id))
+    conn.commit()
+    conn.close()
+
+def get_stats():
+    today = date.today().strftime("%Y-%m-%d")
+    conn = sqlite3.connect(DB_PATH)
+    lost = pd.read_sql("SELECT COUNT(*) FROM items WHERE post_type='lost' AND audit_status='passed'", conn).iloc[0,0]
+    found = pd.read_sql("SELECT COUNT(*) FROM items WHERE post_type='found' AND audit_status='passed'", conn).iloc[0,0]
+    waiting = pd.read_sql("SELECT COUNT(*) FROM items WHERE audit_status='pending'", conn).iloc[0,0]
+    today_publish = pd.read_sql("SELECT COUNT(*) FROM items WHERE DATE(created_at)=?", conn, params=(today,)).iloc[0,0]
+    today_done = pd.read_sql("SELECT COUNT(*) FROM items WHERE status='done' AND DATE(created_at)=?", conn, params=(today,)).iloc[0,0]
+    conn.close()
+    return {"lost":lost,"found":found,"waiting":waiting,"today_publish":today_publish,"today_done":today_done}

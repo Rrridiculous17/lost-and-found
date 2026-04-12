@@ -11,22 +11,34 @@ def set_page_config():
 
 set_page_config()
 
-# 全局样式 —— 已修复滚动动画
+# 全局样式 —— 强制浅色模式，解决标题乱码
 st.markdown("""
 <style>
-    .stApp { background-color: #ffffff; color: #222; }
-    .stSidebar { background-color: #f7f7f7; }
+    .stApp { 
+        background-color: #ffffff !important; 
+        color: #222222 !important; 
+    }
+    .stSidebar { 
+        background-color: #f7f7f7 !important; 
+        color: #222222 !important; 
+    }
     .section {
-        background: #fcfcfc; color: #222; border: 1px solid #eee;
-        border-radius: 18px; padding: 20px; margin-bottom: 20px;
-        max-height: 550px; overflow-y: auto;
+        background: #fcfcfc !important; 
+        color: #222222 !important; 
+        border: 1px solid #eee;
+        border-radius: 18px; 
+        padding: 20px; 
+        margin-bottom: 20px;
+        max-height: 550px; 
+        overflow-y: auto;
     }
     .banner {
-        background: linear-gradient(90deg, #e6f0ff, #dceaff);
-        border-radius: 16px; padding: 18px 22px; margin-bottom: 28px;
+        background: linear-gradient(90deg, #e6f0ff, #dceaff) !important;
+        border-radius: 16px; 
+        padding: 18px 22px; 
+        margin-bottom: 28px;
+        color: #222222 !important;
     }
-
-    /* ========== 修复滚动统计栏 ========== */
     .stats-marquee {
         margin-top: 10px;
         width: 100%;
@@ -34,21 +46,26 @@ st.markdown("""
         overflow: hidden;
         height: 24px;
         line-height: 24px;
-        background: rgba(255,255,255,0.6);
+        background: rgba(255,255,255,0.6) !important;
         border-radius: 6px;
         padding: 2px 10px;
+        color: #222222 !important;
     }
     .stats-content {
         display: inline-block;
         animation: stats-scroll 15s linear infinite;
+        color: #222222 !important;
     }
     @keyframes stats-scroll {
         0% { transform: translateX(100%); }
         100% { transform: translateX(-100%); }
     }
+    /* 强制所有文本为深色，避免乱码 */
+    * {
+        color: #222222 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
-
 # 图标
 ITEM_ICONS = {
     "校园卡": "🪪", "钥匙": "🔑", "水杯": "🥤", "钱包": "👛",

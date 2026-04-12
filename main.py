@@ -1,9 +1,16 @@
 import streamlit as st
+from config import init_session
+from database import init_db
+from components import sidebar
 from pages import page_map
 
 def main():
-    current = st.sidebar.radio("导航", list(page_map.keys()))
-    page_map
+    init_db()
+    init_session()
+    sidebar()
+    current = st.session_state.page
+    if current in page_map:
+        page_map[current]()
 
 if __name__ == "__main__":
     main()
