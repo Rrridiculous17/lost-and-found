@@ -4,6 +4,10 @@ import os
 import pandas as pd
 from datetime import datetime, date
 
+# 🔴 关键修复：Streamlit Cloud 用内存数据库，避免文件写入权限问题
+# 本地运行用文件，云端用内存，自动适配
+DB_PATH = "lost_found_final.db" if os.access(".", os.W_OK) else ":memory:"
+
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -11,9 +15,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def hash_pw(p):
     return hashlib.sha256(p.encode()).hexdigest()
 
-# 初始化数据库
+# 初始化数据库（完全重构，解决参数+权限问题）
 def init_db():
-    conn = sqlite3.connect("lost_found_final.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
     # 用户表
@@ -22,7 +26,7 @@ def init_db():
         name TEXT, phone TEXT, email TEXT, role TEXT DEFAULT 'user', created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # 物品表
+    # 物品表（字段顺序严格对齐，避免参数不匹配）
     c.execute('''CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, title TEXT,
         description TEXT, location TEXT, image_path TEXT,
@@ -58,13 +62,14 @@ def init_db():
         c.execute("INSERT INTO users (student_id,password,name,role) VALUES (?,?,?,?)",
                   ("2026001", hash_pw("123456"), "测试学生", "user"))
 
-    # 测试物品
+    # 🔴 关键修复：测试数据参数数量严格对齐SQL字段（11个参数对应11个?）
     c.execute("SELECT COUNT(*) FROM items")
     if c.fetchone()[0] == 0:
+        # 字段顺序：user_id, type, title, description, location, image_path, post_type, audit_status, contact_phone, contact_wechat, created_at
         sample_items = [
-            (1, "校园卡", "丢失校园卡一张", "图书馆二楼", "", "lost", "pending", "13800138000", "wx_admin", datetime.now()),
-            (1, "钥匙", "一串钥匙，有蓝色挂件", "教学楼A座", "", "lost", "pending", "13800138000", "wx_admin", datetime.now()),
-            (1, "水杯", "不锈钢保温杯", "食堂一层", "", "found", "pending", "13800138000", "wx_admin", datetime.now())
+            (1, "校园卡", "丢失校园卡一张", "图书馆二楼捡到", "图书馆二楼", "", "lost", "pending", "13800138000", "wx_admin", datetime.now()),
+            (1, "钥匙", "一串钥匙，有蓝色挂件", "教学楼A座门口", "教学楼A座", "", "lost", "pending", "13800138000", "wx_admin", datetime.now()),
+            (1, "水杯", "不锈钢保温杯", "食堂一层靠窗位置", "食堂一层", "", "found", "pending", "13800138000", "wx_admin", datetime.now())
         ]
         c.executemany('''
             INSERT INTO items (user_id, type, title, description, location, image_path, post_type, audit_status, contact_phone, contact_wechat, created_at)
@@ -104,7 +109,7 @@ def init_db():
 
 # 获取公告
 def get_announcement():
-    conn = sqlite3.connect("lost_found_final.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT value FROM settings WHERE key='announcement'")
     res = c.fetchone()
@@ -113,7 +118,7 @@ def get_announcement():
 
 # 保存公告
 def save_announcement(content):
-    conn = sqlite3.connect("lost_found_final.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("UPDATE settings SET value=? WHERE key='announcement'", (content,))
     conn.commit()
@@ -121,7 +126,7 @@ def save_announcement(content):
 
 # 修改密码
 def update_password(user_id, new_pwd):
-    conn = sqlite3.connect("lost_found_final.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("UPDATE users SET password=? WHERE id=?", (hash_pw(new_pwd), user_id))
     conn.commit()
@@ -130,7 +135,7 @@ def update_password(user_id, new_pwd):
 # 统计数据
 def get_stats():
     today = date.today().strftime("%Y-%m-%d")
-    conn = sqlite3.connect("lost_found_final.db")
+    conn = sqlite3.connect(DB_PATH)
     lost = pd.read_sql("SELECT COUNT(*) FROM items WHERE post_type='lost' AND audit_status='passed'", conn).iloc[0,0]
     found = pd.read_sql("SELECT COUNT(*) FROM items WHERE post_type='found' AND audit_status='passed'", conn).iloc[0,0]
     waiting = pd.read_sql("SELECT COUNT(*) FROM items WHERE audit_status='pending'", conn).iloc[0,0]

@@ -1,3 +1,4 @@
+from database import DB_PATH
 import streamlit as st
 import pandas as pd
 import os
@@ -22,7 +23,7 @@ def page_home():
     with col2: cat = st.selectbox("📦 分类",["全部"]+list(ITEM_ICONS.keys()),key="home_cat")
     st.divider()
     col_lost,col_found = st.columns(2)
-    conn = sqlite3.connect("lost_found_final.db")
+    conn = sqlite3.connect(DB_PATH)
     with col_lost:
         st.markdown(f"""<div class='section'><h3 style='color:#d13434;margin-top:0;'>🔴 失物专区</h3>""",unsafe_allow_html=True)
         q = "SELECT * FROM items WHERE post_type='lost' AND audit_status='passed'"
@@ -68,7 +69,7 @@ def page_lost():
     kw = st.text_input("搜索失物",key="lost_search")
     cat = st.selectbox("分类",["全部"]+list(ITEM_ICONS.keys()),key="lost_cat")
     st.divider()
-    conn = sqlite3.connect("lost_found_final.db")
+    conn = sqlite3.connect(DB_PATH)
     q = "SELECT * FROM items WHERE post_type='lost' AND audit_status='passed'"
     params = []
     if kw:
@@ -87,7 +88,7 @@ def page_found():
     kw = st.text_input("搜索招领",key="found_search")
     cat = st.selectbox("分类",["全部"]+list(ITEM_ICONS.keys()),key="found_cat")
     st.divider()
-    conn = sqlite3.connect("lost_found_final.db")
+    conn = sqlite3.connect(DB_PATH)
     q = "SELECT * FROM items WHERE post_type='found' AND audit_status='passed'"
     params = []
     if kw:
@@ -108,7 +109,7 @@ def page_login_register():
         sid = st.text_input("学号/管理员")
         pwd = st.text_input("密码",type="password")
         if st.button("登录",use_container_width=True):
-            conn = sqlite3.connect("lost_found_final.db")
+            conn = sqlite3.connect(DB_PATH)
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
             c.execute("SELECT * FROM users WHERE student_id=? AND password=?",(sid,hash_pw(pwd)))
@@ -133,7 +134,7 @@ def page_login_register():
         if st.button("注册",use_container_width=True):
             if not (sid and name and pwd):st.error("学号、姓名、密码不能为空");return
             try:
-                conn = sqlite3.connect("lost_found_final.db")
+                conn = sqlite3.connect(DB_PATH)
                 c = conn.cursor()
                 c.execute("INSERT INTO users (student_id,password,name,phone,email) VALUES (?,?,?,?,?)",
                           (sid,hash_pw(pwd),name,phone,email))
@@ -173,7 +174,7 @@ def page_detail():
 
     if st.session_state.logged_in and it['user_id'] == st.session_state.user_id:
         if st.button("✅ 标记已找回",type="primary",use_container_width=True):
-            conn = sqlite3.connect("lost_found_final.db")
+            conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             c.execute("UPDATE items SET status='done' WHERE id=?",(it['id'],))
             conn.commit()
@@ -192,7 +193,7 @@ def page_apply():
     iid = st.session_state.get("apply_item_id")
     if not iid:st.error("无效申请");return
 
-    conn = sqlite3.connect("lost_found_final.db")
+    conn = sqlite3.connect(DB_PATH)
     item = pd.read_sql("SELECT * FROM items WHERE id=?",conn,params=(iid,)).to_dict("records")
     conn.close()
 
@@ -214,7 +215,7 @@ def page_apply():
         note = st.text_area("补充说明（物品特征/丢失时间）")
         if st.form_submit_button("提交申请",use_container_width=True):
             if name and sid and phone:
-                conn = sqlite3.connect("lost_found_final.db")
+                conn = sqlite3.connect(DB_PATH)
                 c = conn.cursor()
                 c.execute("INSERT INTO apply_records (item_id,student_id,name,phone,note,created_at) VALUES (?,?,?,?,?,?)",
                           (iid,sid,name,phone,note,datetime.now()))
@@ -248,7 +249,7 @@ def page_post_lost():
                 if img:
                     with open(path,"wb") as f:f.write(img.getvalue())
                 else:path=""
-                conn = sqlite3.connect("lost_found_final.db")
+                conn = sqlite3.connect(DB_PATH)
                 c = conn.cursor()
                 c.execute('''INSERT INTO items
                 (user_id,type,title,description,location,image_path,post_type,audit_status,contact_phone,contact_wechat,created_at)
@@ -280,7 +281,7 @@ def page_post_found():
                 if img:
                     with open(path,"wb") as f:f.write(img.getvalue())
                 else:path=""
-                conn = sqlite3.connect("lost_found_final.db")
+                conn = sqlite3.connect(DB_PATH)
                 c = conn.cursor()
                 c.execute('''INSERT INTO items
                 (user_id,type,title,description,location,image_path,post_type,audit_status,contact_phone,contact_wechat,created_at)
@@ -299,7 +300,7 @@ def page_admin():
     if st.session_state.role!="admin":st.error("无权限");st.session_state.page="首页";rerun()
     st.title("⚙️ 管理后台")
     t1,t2,t3,t4 = st.tabs(["待审核发布","已通过","认领申请","用户管理"])
-    conn = sqlite3.connect("lost_found_final.db")
+    conn = sqlite3.connect(DB_PATH)
     with t1:
         st.subheader("待审核物品")
         df = pd.read_sql("SELECT * FROM items WHERE audit_status='pending'",conn)
@@ -355,7 +356,7 @@ def page_admin():
 def page_profile():
     if not st.session_state.logged_in:st.warning("请登录");st.session_state.page="登录注册";rerun()
     st.title("👤 个人中心")
-    conn = sqlite3.connect("lost_found_final.db")
+    conn = sqlite3.connect(DB_PATH)
     u = pd.read_sql("SELECT name,student_id,phone,email FROM users WHERE id=?",conn,params=(st.session_state.user_id,)).iloc[0]
     st.write(f"**姓名：** {u['name']}")
     st.write(f"**学号：** {u['student_id']}")
