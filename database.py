@@ -16,7 +16,6 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # 用户表
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id TEXT UNIQUE,
@@ -28,7 +27,6 @@ def init_db():
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # 物品表
     c.execute('''CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
@@ -45,7 +43,6 @@ def init_db():
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # 认领申请表
     c.execute('''CREATE TABLE IF NOT EXISTS apply_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         item_id INTEGER,
@@ -57,25 +54,19 @@ def init_db():
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # 设置表
     c.execute('''CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT
     )''')
 
-    # 初始化账号与公告
     c.execute("INSERT OR IGNORE INTO settings (key,value) VALUES ('announcement','欢迎使用校园失物招领平台！')")
-    c.execute("INSERT OR IGNORE INTO users (student_id,password,name,role) VALUES ('admin','"+hash_pw("123456")+"','管理员','admin')")
-    c.execute("INSERT OR IGNORE INTO users (student_id,password,name,role) VALUES ('2026001','"+hash_pw("123456")+"','小明','user')")
+    c.execute("INSERT OR IGNORE INTO users (student_id,password,name,role) VALUES ('admin',?,'管理员','admin')", (hash_pw("123456"),))
+    c.execute("INSERT OR IGNORE INTO users (student_id,password,name,role) VALUES ('2026001',?,'小明','user')", (hash_pw("123456"),))
 
     c.execute("DELETE FROM items")
     c.execute("DELETE FROM apply_records")
-    c.execute("DELETE FROM sqlite_sequence WHERE name='items'")
-    c.execute("DELETE FROM sqlite_sequence WHERE name='apply_records'")
 
-    # ===================== 首页显示数据（已通过） =====================
     sample_items = [
-        # 失物
         (1, "校园卡", "校园卡丢失", "蓝色贴纸", "图书馆二楼", "", "lost", "passed", "13800000001", "wx1", datetime.now()),
         (1, "身份证", "身份证遗失", "姓名小明", "校门口", "", "lost", "passed", "13800000002", "wx2", datetime.now()),
         (1, "耳机", "白色蓝牙耳机", "小米", "操场", "", "lost", "passed", "13800000003", "wx3", datetime.now()),
@@ -95,7 +86,6 @@ def init_db():
         (1, "书签", "书签丢失", "木质", "图书馆四楼", "", "lost", "passed", "13822220009", "wx25", datetime.now()),
         (1, "水杯", "玻璃杯丢失", "透明把手", "篮球场", "", "lost", "passed", "13822220010", "wx26", datetime.now()),
 
-        # 招领
         (1, "校园卡", "捡到校园卡", "蓝色卡面", "图书馆一楼", "", "found", "passed", "13811110001", "wx11", datetime.now()),
         (1, "耳机", "捡到耳机", "白色AirPods", "教学楼B", "", "found", "passed", "13811110002", "wx12", datetime.now()),
         (1, "水杯", "捡到水杯", "粉色", "食堂二楼", "", "found", "passed", "13811110003", "wx13", datetime.now()),
@@ -116,7 +106,6 @@ def init_db():
         (1, "校园卡", "捡到校园卡", "红色", "体育馆", "", "found", "passed", "13833330010", "wx36", datetime.now()),
     ]
 
-    # ===================== 管理员后台：待审核发布（5条） =====================
     pending_items = [
         (1, "平板", "iPad丢失", "银色平板", "图书馆", "", "lost", "pending", "13800000101", "wx_p1", datetime.now()),
         (1, "相机", "相机遗失", "黑色单反", "景点", "", "lost", "pending", "13800000102", "wx_p2", datetime.now()),
@@ -131,7 +120,6 @@ def init_db():
         (user_id,type,title,description,location,image_path,post_type,audit_status,contact_phone,contact_wechat,created_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?)''', all_items)
 
-    # ===================== 管理员后台：认领申请（5条） =====================
     apply_data = [
         (1, "2026111", "小红", "13899990001", "这是我的校园卡，有蓝色贴纸", "待审核", datetime.now()),
         (3, "2026222", "小刚", "13899990002", "耳机是我的，左耳有标记", "待审核", datetime.now()),
@@ -147,7 +135,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# ===================== 功能函数 =====================
 def get_announcement():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
