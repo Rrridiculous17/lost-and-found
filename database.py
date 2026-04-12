@@ -1,85 +1,164 @@
-# 🔥 无数据库、无报错、纯静态数据版
-# 永远不会出现 sqlite3 错误！
+import sqlite3
+import hashlib
+import os
 
-# 公告
+# 数据库文件（数据存在这里，重启不丢）
+DB_FILE = "lostfound.db"
+
+# 密码加密
+def hash_pw(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# ===================== 初始化：自动建表 =====================
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    # 用户表
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id TEXT UNIQUE,
+        password TEXT,
+        name TEXT,
+        role TEXT DEFAULT "user"
+    )''')
+
+    # 物品表
+    c.execute('''CREATE TABLE IF NOT EXISTS items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        type TEXT,
+        title TEXT,
+        description TEXT,
+        location TEXT,
+        post_type TEXT,
+        audit_status TEXT DEFAULT "pending",
+        contact_phone TEXT,
+        contact_wechat TEXT
+    )''')
+
+    # 设置表（公告）
+    c.execute('''CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )''')
+
+    # 插入默认账号
+    try:
+        c.execute("INSERT INTO users (student_id, password, name, role) VALUES (?,?,?,?)",
+                  ("admin", hash_pw("123456"), "管理员", "admin"))
+        c.execute("INSERT INTO users (student_id, password, name, role) VALUES (?,?,?,?)",
+                  ("2026001", hash_pw("123456"), "小明", "user"))
+    except:
+        pass
+
+    # 插入默认公告
+    try:
+        c.execute("INSERT INTO settings (key, value) VALUES (?,?)",
+                  ("announcement", "欢迎使用校园失物招领平台！文明发布，诚信认领～"))
+    except:
+        pass
+
+    conn.commit()
+    conn.close()
+
+# ===================== 功能函数 =====================
+
+# 获取公告
 def get_announcement():
-    return "欢迎使用校园失物招领平台！请文明发布，诚信认领~"
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("SELECT value FROM settings WHERE key='announcement'")
+        res = c.fetchone()
+        conn.close()
+        return res[0] if res else "欢迎使用"
+    except:
+        return "欢迎使用校园失物招领平台"
 
-# 统计数字
-def get_stats():
-    return {
-        "lost": 18,
-        "found": 18,
-        "waiting": 5,
-        "today_publish": 12,
-        "today_done": 6
-    }
-
-# 登录（固定账号）
+# 登录
 def login(student_id, password):
-    if student_id == "admin" and password == "123456":
-        return (1, "admin", "管理员", "admin")
-    if student_id == "2026001" and password == "123456":
-        return (2, "2026001", "小明", "user")
-    return None
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("SELECT * FROM users WHERE student_id=? AND password=?",
+                  (student_id, hash_pw(password)))
+        res = c.fetchone()
+        conn.close()
+        return res
+    except:
+        return None
 
-# ===================== 首页显示的失物（18条） =====================
-def get_items_by_type(type_name):
-    if type_name == "lost":
-        return [
-            (1, 1, "校园卡", "校园卡丢失", "蓝色贴纸", "图书馆二楼", "lost", "passed", "13800000001", "wx1"),
-            (2, 1, "身份证", "身份证遗失", "姓名小明", "校门口", "lost", "passed", "13800000002", "wx2"),
-            (3, 1, "耳机", "白色蓝牙耳机", "小米", "操场", "lost", "passed", "13800000003", "wx3"),
-            (4, 1, "钥匙", "钥匙一串", "蓝色挂件", "教学楼A", "lost", "passed", "13800000004", "wx4"),
-            (5, 1, "钱包", "黑色钱包", "有现金", "食堂", "lost", "passed", "13800000005", "wx5"),
-            (6, 1, "手表", "黑色电子表", "轻微划痕", "篮球场", "lost", "passed", "13800000006", "wx6"),
-            (7, 1, "U盘", "黑色U盘", "白色条纹", "自习室", "lost", "passed", "13800000007", "wx7"),
-            (8, 1, "眼镜", "黑框眼镜", "无划痕", "图书馆三楼", "lost", "passed", "13800000008", "wx8"),
-            (9, 1, "校园卡", "黄色校园卡", "带校徽", "食堂三楼", "lost", "passed", "13822220001", "wx9"),
-            (10, 1, "项链", "银色项链", "爱心吊坠", "宿舍楼下", "lost", "passed", "13822220002", "wx10"),
-            (11, 1, "计算器", "计算器丢失", "卡西欧", "教学楼C", "lost", "passed", "13822220003", "wx19"),
-            (12, 1, "手套", "黑色手套", "加绒", "操场", "lost", "passed", "13822220004", "wx20"),
-            (13, 1, "围巾", "灰色围巾", "针织", "图书馆", "lost", "passed", "13822220005", "wx21"),
-            (14, 1, "学生证", "学生证丢失", "带钢印", "行政楼", "lost", "passed", "13822220006", "wx22"),
-            (15, 1, "口红", "口红丢失", "红色", "卫生间", "lost", "passed", "13822220007", "wx23"),
-            (16, 1, "护手霜", "护手霜丢失", "铁盒", "超市", "lost", "passed", "13822220008", "wx24"),
-            (17, 1, "书签", "书签丢失", "木质", "图书馆四楼", "lost", "passed", "13822220009", "wx25"),
-            (18, 1, "水杯", "玻璃杯丢失", "透明把手", "篮球场", "lost", "passed", "13822220010", "wx26"),
-        ]
+# 获取物品
+def get_items_by_type(post_type):
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("SELECT * FROM items WHERE post_type=? AND audit_status='passed'", (post_type,))
+        data = c.fetchall()
+        conn.close()
+        return data
+    except:
+        return []
 
-    if type_name == "found":
-        return [
-            (19, 1, "校园卡", "捡到校园卡", "蓝色卡面", "图书馆一楼", "found", "passed", "13811110001", "wx11"),
-            (20, 1, "耳机", "捡到耳机", "白色AirPods", "教学楼B", "found", "passed", "13811110002", "wx12"),
-            (21, 1, "水杯", "捡到水杯", "粉色", "食堂二楼", "found", "passed", "13811110003", "wx13"),
-            (22, 1, "雨伞", "捡到雨伞", "黑色全自动", "校门口", "found", "passed", "13811110004", "wx14"),
-            (23, 1, "充电宝", "捡到充电宝", "白色2万毫安", "操场", "found", "passed", "13811110005", "wx15"),
-            (24, 1, "公交卡", "捡到公交卡", "上海一卡通", "超市", "found", "passed", "13811110006", "wx16"),
-            (25, 1, "笔记本", "捡到笔记本", "黑色封面", "自习室", "found", "passed", "13811110007", "wx17"),
-            (26, 1, "书包", "捡到书包", "蓝色双肩包", "体育馆", "found", "passed", "13811110008", "wx18"),
-            (27, 1, "手表", "捡到手表", "白色运动", "羽毛球场", "found", "passed", "13833330001", "wx27"),
-            (28, 1, "钥匙", "捡到钥匙", "黑色扣", "停车场", "found", "passed", "13833330002", "wx28"),
-            (29, 1, "耳机", "捡到耳机", "黑色三星", "图书馆负一", "found", "passed", "13833330003", "wx29"),
-            (30, 1, "公交卡", "捡到公交卡", "上海一卡通", "地铁口", "found", "passed", "13833330004", "wx30"),
-            (31, 1, "眼镜", "捡到眼镜", "银色半框", "食堂门口", "found", "passed", "13833330005", "wx31"),
-            (32, 1, "雨伞", "捡到雨伞", "格子", "教学楼D", "found", "passed", "13833330006", "wx32"),
-            (33, 1, "充电宝", "捡到充电宝", "粉色卡通", "图书馆大厅", "found", "passed", "13833330007", "wx33"),
-            (34, 1, "钱包", "捡到钱包", "棕色短款", "校门口", "found", "passed", "13833330008", "wx34"),
-            (35, 1, "U盘", "捡到U盘", "银色金属", "自习室", "found", "passed", "13833330009", "wx35"),
-            (36, 1, "校园卡", "捡到校园卡", "红色", "体育馆", "found", "passed", "13833330010", "wx36"),
-        ]
-
-# ===================== 管理员后台：待审核 =====================
+# 待审核列表
 def get_pending_items():
-    return [
-        (37, 1, "平板", "iPad丢失", "银色平板", "图书馆", "lost", "pending", "13800000101", "wx_p1"),
-        (38, 1, "相机", "相机遗失", "黑色单反", "景点", "lost", "pending", "13800000102", "wx_p2"),
-        (39, 1, "钱包", "捡到钱包", "咖啡色长款钱包", "商场", "found", "pending", "13800000103", "wx_p3"),
-        (40, 1, "书", "专业课本", "考研数学书", "教室", "lost", "pending", "13800000104", "wx_p4"),
-        (41, 1, "帽子", "黑色帽子", "鸭舌帽", "操场", "found", "pending", "13800000105", "wx_p5"),
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("SELECT * FROM items WHERE audit_status='pending'")
+        data = c.fetchall()
+        conn.close()
+        return data
+    except:
+        return []
+
+# 统计
+def get_stats():
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM items WHERE post_type='lost' AND audit_status='passed'")
+        lost = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM items WHERE post_type='found' AND audit_status='passed'")
+        found = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM items WHERE audit_status='pending'")
+        waiting = c.fetchone()[0]
+        conn.close()
+        return {"lost": lost, "found": found, "waiting": waiting, "today_publish":0, "today_done":0}
+    except:
+        return {"lost":0,"found":0,"waiting":0,"today_publish":0,"today_done":0}
+
+# 插入测试数据（首页显示）
+def insert_demo_data():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("DELETE FROM items")
+
+    demo_items = [
+        (1,"校园卡","校园卡丢失","蓝色贴纸","图书馆二楼","lost","passed","13800000001","wx1"),
+        (1,"身份证","身份证遗失","姓名小明","校门口","lost","passed","13800000002","wx2"),
+        (1,"耳机","白色蓝牙耳机","小米","操场","lost","passed","13800000003","wx3"),
+        (1,"钥匙","钥匙一串","蓝色挂件","教学楼A","lost","passed","13800000004","wx4"),
+        (1,"钱包","黑色钱包","有现金","食堂","lost","passed","13800000005","wx5"),
+
+        (1,"校园卡","捡到校园卡","蓝色卡面","图书馆一楼","found","passed","13811110001","wx11"),
+        (1,"耳机","捡到耳机","白色AirPods","教学楼B","found","passed","13811110002","wx12"),
+        (1,"水杯","捡到水杯","粉色","食堂二楼","found","passed","13811110003","wx13"),
+        (1,"雨伞","捡到雨伞","黑色全自动","校门口","found","passed","13811110004","wx14"),
+
+        (1,"平板","iPad丢失","银色","图书馆","lost","pending","13800000101","wxp1"),
+        (1,"相机","相机遗失","黑色单反","景点","lost","pending","13800000102","wxp2"),
     ]
 
-# ===================== 空函数，兼容页面 =====================
-def init_db(): pass
-def save_announcement(x): pass
-def update_password(x,y): pass
+    c.executemany('''
+        INSERT INTO items (user_id, type, title, description, location, post_type, audit_status, contact_phone, contact_wechat)
+        VALUES (?,?,?,?,?,?,?,?,?)
+    ''', demo_items)
+
+    conn.commit()
+    conn.close()
+
+# 启动时初始化
+init_db()
+insert_demo_data()
