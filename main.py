@@ -1,16 +1,22 @@
 import streamlit as st
-from config import init_session
-from database import init_db
-from components import sidebar
-from pages import page_map
+from pages import page_home, page_admin, page_login
+
+st.set_page_config(page_title="失物招领")
+
+if "login" not in st.session_state:
+    st.session_state.login = False
+    st.session_state.role = "user"
 
 def main():
-    init_db()
-    init_session()
-    sidebar()
-    current = st.session_state.page
-    if current in page_map:
-        page_map[current]()
+    page = st.sidebar.selectbox("页面", ["首页", "登录", "管理后台"])
+
+    page_map = {
+        "首页": page_home,
+        "登录": page_login,
+        "管理后台": page_admin
+    }
+
+    page_map[page]()
 
 if __name__ == "__main__":
     main()
