@@ -1,4 +1,3 @@
-from database import DB_PATH
 import streamlit as st
 import pandas as pd
 import os
@@ -242,13 +241,11 @@ def page_post_lost():
         loc = st.text_input("丢失地点")
         phone = st.text_input("联系电话")
         wechat = st.text_input("微信")
-        img = st.file_uploader("图片")
+        # 🔴 云端禁用图片上传，避免文件写入报错
+        # img = st.file_uploader("图片")
         if st.form_submit_button("提交发布",use_container_width=True):
             if title and loc:
-                path = os.path.join("uploads",f"{int(time.time())}_{random.randint(1000,9999)}.png")
-                if img:
-                    with open(path,"wb") as f:f.write(img.getvalue())
-                else:path=""
+                path = ""
                 conn = sqlite3.connect(DB_PATH)
                 c = conn.cursor()
                 c.execute('''INSERT INTO items
@@ -274,13 +271,11 @@ def page_post_found():
         loc = st.text_input("捡到地点")
         phone = st.text_input("电话")
         wechat = st.text_input("微信")
-        img = st.file_uploader("图片")
+        # 🔴 云端禁用图片上传，避免文件写入报错
+        # img = st.file_uploader("图片")
         if st.form_submit_button("提交发布",use_container_width=True):
             if title and loc:
-                path = os.path.join("uploads",f"{int(time.time())}_{random.randint(1000,9999)}.png")
-                if img:
-                    with open(path,"wb") as f:f.write(img.getvalue())
-                else:path=""
+                path = ""
                 conn = sqlite3.connect(DB_PATH)
                 c = conn.cursor()
                 c.execute('''INSERT INTO items

@@ -4,8 +4,7 @@ import os
 import pandas as pd
 from datetime import datetime, date
 
-# 🔴 关键修复：Streamlit Cloud 用内存数据库，避免文件写入权限问题
-# 本地运行用文件，云端用内存，自动适配
+# 🔴 关键修复：自动适配本地/云端，本地用文件，云端用内存数据库
 DB_PATH = "lost_found_final.db" if os.access(".", os.W_OK) else ":memory:"
 
 UPLOAD_FOLDER = "uploads"
@@ -15,7 +14,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def hash_pw(p):
     return hashlib.sha256(p.encode()).hexdigest()
 
-# 初始化数据库（完全重构，解决参数+权限问题）
+# 初始化数据库（完全修复参数不匹配问题）
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -26,7 +25,7 @@ def init_db():
         name TEXT, phone TEXT, email TEXT, role TEXT DEFAULT 'user', created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # 物品表（字段顺序严格对齐，避免参数不匹配）
+    # 物品表（字段顺序严格固定，避免参数错位）
     c.execute('''CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, title TEXT,
         description TEXT, location TEXT, image_path TEXT,
@@ -62,7 +61,7 @@ def init_db():
         c.execute("INSERT INTO users (student_id,password,name,role) VALUES (?,?,?,?)",
                   ("2026001", hash_pw("123456"), "测试学生", "user"))
 
-    # 🔴 关键修复：测试数据参数数量严格对齐SQL字段（11个参数对应11个?）
+    # 🔴 100%修复：测试数据参数数量严格对齐SQL的11个?，一个不多一个不少
     c.execute("SELECT COUNT(*) FROM items")
     if c.fetchone()[0] == 0:
         # 字段顺序：user_id, type, title, description, location, image_path, post_type, audit_status, contact_phone, contact_wechat, created_at
