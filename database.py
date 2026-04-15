@@ -8,7 +8,8 @@ from datetime import datetime, date
 if os.name == 'nt':
     DB_PATH = "lost_found_final.db"
 else:
-    DB_PATH = "/tmp/lost_found_final.db"
+    # 在 Streamlit Cloud 中使用用户目录下的持久化路径
+    DB_PATH = os.path.join(os.path.expanduser("~"), "lost_found_final.db")
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
