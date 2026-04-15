@@ -71,7 +71,7 @@ def init_db():
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # 设置表 - 保留用于本地存储
+    # 设置表
     c.execute('''CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT
@@ -100,11 +100,11 @@ def init_db():
         c.execute("INSERT INTO users (student_id,password,name,role) VALUES (?,?,?,?)",
                   ("2026003", hash_pw("123456"), "小刚", "user"))
 
-    # 示例数据
+    # 检查是否已有数据
     c.execute("SELECT COUNT(*) FROM items")
     if c.fetchone()[0] == 0:
         sample_items = [
-            # 已通过的失物 lost (audit_status='passed')
+            # 失物 lost (已通过)
             (1, "校园卡", "校园卡丢失", "卡面有蓝色贴纸，学号2026001", "图书馆二楼", "", "lost", "passed", "13800000001",
              "wx_abc", datetime.now()),
             (1, "身份证", "身份证遗失", "姓名小明，地址XX小区", "校门口", "", "lost", "passed", "13800000002", "wx_def",
@@ -115,8 +115,14 @@ def init_db():
              datetime.now()),
             (1, "钱包", "黑色钱包", "里面有校园卡和现金", "食堂一楼", "", "lost", "passed", "13800000005", "wx_mno",
              datetime.now()),
+            (1, "手表", "黑色电子表", "表盘有轻微划痕", "篮球场", "", "lost", "passed", "13800000006", "wx_pqr",
+             datetime.now()),
+            (1, "U盘", "黑色U盘", "上面有白色条纹", "自习室", "", "lost", "passed", "13800000007", "wx_stu",
+             datetime.now()),
+            (1, "眼镜", "黑框眼镜", "镜片无明显划痕", "图书馆三楼", "", "lost", "passed", "13800000008", "wx_vwx",
+             datetime.now()),
 
-            # 已通过的招领 found (audit_status='passed')
+            # 招领 found (已通过)
             (1, "校园卡", "捡到校园卡", "蓝色卡面，学号2025123", "图书馆一楼", "", "found", "passed", "13811110001",
              "wx_123", datetime.now()),
             (1, "耳机", "捡到耳机", "白色AirPods，左耳有小印记", "教学楼B座", "", "found", "passed", "13811110002",
@@ -126,6 +132,12 @@ def init_db():
             (1, "雨伞", "捡到雨伞", "黑色全自动雨伞", "校门口", "", "found", "passed", "13811110004", "wx_000",
              datetime.now()),
             (1, "充电宝", "捡到充电宝", "白色20000毫安", "操场看台", "", "found", "passed", "13811110005", "wx_999",
+             datetime.now()),
+            (1, "公交卡", "捡到公交卡", "羊城通，表面有贴纸", "超市门口", "", "found", "passed", "13811110006", "wx_888",
+             datetime.now()),
+            (1, "笔记本", "捡到笔记本", "黑色封面，写满笔记", "自习室", "", "found", "passed", "13811110007", "wx_777",
+             datetime.now()),
+            (1, "书包", "捡到书包", "蓝色双肩包，有挂件", "体育馆", "", "found", "passed", "13811110008", "wx_666",
              datetime.now()),
 
             # ========== 待审核的物品 (audit_status='pending') ==========
@@ -149,7 +161,7 @@ def init_db():
             VALUES (?,?,?,?,?,?,?,?,?,?,?)''', sample_items)
 
         # ========== 添加认领申请记录 ==========
-        # 先获取已通过招领物品的ID（用于申请认领）
+        # 获取已通过招领物品的ID（用于申请认领）
         c.execute("SELECT id FROM items WHERE post_type='found' AND audit_status='passed' LIMIT 3")
         found_item_ids = [row[0] for row in c.fetchall()]
 
