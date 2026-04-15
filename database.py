@@ -3,16 +3,23 @@ import hashlib
 import os
 import pandas as pd
 from datetime import datetime, date
+import streamlit as st
 
 # 本地/云端自动适配数据库路径
 if os.name == 'nt':
     DB_PATH = "lost_found_final.db"
 else:
-    # 在 Streamlit Cloud 中使用用户目录下的持久化路径
     DB_PATH = os.path.join(os.path.expanduser("~"), "lost_found_final.db")
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# 默认公告内容
+DEFAULT_ANNOUNCEMENT = """📢 系统公告：
+1. 失物招领申请审核时间为1-3个工作日，请耐心等待；
+2. 发布信息请确保真实，上传清晰物品图片；
+3. 冒用他人信息将被拉黑处理；
+4. 物品找回后请及时标记。"""
 
 
 def hash_pw(p):
@@ -23,7 +30,7 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # 用户表 - 修复 em ail -> email
+    # 用户表
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id TEXT UNIQUE,
@@ -35,7 +42,7 @@ def init_db():
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # 物品表 - 修复 AU TOINCREMENT -> AUTOINCREMENT, pe nding -> pending
+    # 物品表
     c.execute('''CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
@@ -52,7 +59,7 @@ def init_db():
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # 认领申请表 - 修复 TABL E -> TABLE, DE FAULT -> DEFAULT
+    # 认领申请表
     c.execute('''CREATE TABLE IF NOT EXISTS apply_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         item_id INTEGER,
@@ -64,17 +71,11 @@ def init_db():
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # 设置表
+    # 设置表 - 保留用于本地存储
     c.execute('''CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT
     )''')
-
-    # 公告
-    c.execute("SELECT * FROM settings WHERE key='announcement'")
-    if not c.fetchone():
-        c.execute("INSERT INTO settings (key,value) VALUES (?,?)",
-                  ("announcement", "欢迎使用校园失物招领平台！请文明发布、诚信认领，谢谢配合～"))
 
     # 管理员
     c.execute("SELECT * FROM users WHERE student_id='admin'")
@@ -88,7 +89,7 @@ def init_db():
         c.execute("INSERT INTO users (student_id,password,name,role) VALUES (?,?,?,?)",
                   ("2026001", hash_pw("123456"), "小明", "user"))
 
-    # ========================= 大量失物招领数据（默认已通过） =========================
+    # 示例数据
     c.execute("SELECT COUNT(*) FROM items")
     if c.fetchone()[0] == 0:
         sample_items = [
@@ -129,7 +130,6 @@ def init_db():
              datetime.now()),
         ]
 
-        # 修复 cr eated_at -> created_at
         c.executemany('''INSERT INTO items
             (user_id,type,title,description,location,image_path,post_type,audit_status,contact_phone,contact_wechat,created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?)''', sample_items)
@@ -139,18 +139,33 @@ def init_db():
 
 
 def get_announcement():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT value FROM settings WHERE key='announcement'")
-    res = c.fetchone()
-    conn.close()
-    return res[0] if res else ""
+    """获取公告 - 优先从 Secrets 读取，否则从数据库读取"""
+    try:
+        # 优先使用 Streamlit Secrets
+        return st.secrets["announcement"]
+    except:
+        # 如果 Secrets 不存在，从数据库读取
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT value FROM settings WHERE key='announcement'")
+        res = c.fetchone()
+        conn.close()
+
+        if res:
+            return res[0]
+        else:
+            # 如果数据库也没有，返回默认公告
+            return DEFAULT_ANNOUNCEMENT
 
 
 def save_announcement(content):
+    """保存公告 - 保存到数据库（云端建议使用 Secrets）"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("UPDATE settings SET value=? WHERE key='announcement'", (content,))
+    # 先删除旧记录
+    c.execute("DELETE FROM settings WHERE key='announcement'")
+    # 插入新记录
+    c.execute("INSERT INTO settings (key,value) VALUES (?,?)", ("announcement", content))
     conn.commit()
     conn.close()
 
@@ -166,13 +181,13 @@ def update_password(user_id, new_pwd):
 def get_stats():
     today = date.today().strftime("%Y-%m-%d")
     conn = sqlite3.connect(DB_PATH)
-    # 修复 COUNT( ) -> COUNT(*)
     lost = pd.read_sql("SELECT COUNT(*) FROM items WHERE post_type='lost' AND audit_status='passed'", conn).iloc[0, 0]
     found = pd.read_sql("SELECT COUNT(*) FROM items WHERE post_type='found' AND audit_status='passed'", conn).iloc[0, 0]
     waiting = pd.read_sql("SELECT COUNT(*) FROM items WHERE audit_status='pending'", conn).iloc[0, 0]
     today_publish = pd.read_sql("SELECT COUNT(*) FROM items WHERE DATE(created_at)=?", conn, params=(today,)).iloc[0, 0]
     today_done = \
-    pd.read_sql("SELECT COUNT(*) FROM items WHERE status='done' AND DATE(created_at)=?", conn, params=(today,)).iloc[
-        0, 0]
+        pd.read_sql("SELECT COUNT(*) FROM items WHERE status='done' AND DATE(created_at)=?", conn,
+                    params=(today,)).iloc[
+            0, 0]
     conn.close()
     return {"lost": lost, "found": found, "waiting": waiting, "today_publish": today_publish, "today_done": today_done}
